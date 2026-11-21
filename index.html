@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Guesser</title>
+  <style>
+    :root {
+      --cream: #f8f1df;
+      --ink: #20231f;
+      --green: #477a49;
+      --green-dark: #2e5932;
+      --brown: #79533a;
+      --red: #c94a46;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        linear-gradient(rgba(248, 241, 223, .88), rgba(248, 241, 223, .88)),
+        repeating-linear-gradient(45deg, #b9a66f 0 2px, transparent 2px 20px);
+    }
+
+    .shell {
+      width: min(720px, calc(100% - 24px));
+      margin: 24px auto;
+    }
+
+    h1 {
+      margin: 0 0 14px;
+      text-align: center;
+      color: var(--green-dark);
+      font-size: clamp(38px, 9vw, 68px);
+      line-height: 1;
+      letter-spacing: 2px;
+      text-shadow: 3px 3px 0 rgba(121, 83, 58, .18);
+    }
+
+    .panel {
+      border: 4px solid var(--ink);
+      border-radius: 12px;
+      background: rgba(255, 253, 247, .96);
+      box-shadow: 8px 8px 0 rgba(32, 35, 31, .16);
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 72px;
+      padding: 12px 16px;
+      border-bottom: 4px solid var(--ink);
+      background: #dfc99a;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1.4px;
+    }
+
+    #hearts {
+      display: grid;
+      grid-template-columns: repeat(16, 19px);
+      gap: 2px;
+      min-height: 44px;
+      align-content: center;
+    }
+
+    .heart {
+      font-family: Arial, sans-serif;
+      font-size: 18px;
+      line-height: 20px;
+      color: var(--red);
+      filter: drop-shadow(1px 1px 0 #6e2927);
+    }
+
+    .heart.empty { color: #b5ad9c; filter: none; }
+
+    .round {
+      flex: 0 0 auto;
+      min-width: 75px;
+      text-align: right;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .game { padding: 20px; }
+
+    .image-frame {
+      position: relative;
+      width: min(384px, 80vw);
+      aspect-ratio: 1;
+      margin: 0 auto 18px;
+      border: 4px solid var(--ink);
+      border-radius: 8px;
+      background:
+        linear-gradient(45deg, #dcd9cc 25%, transparent 25%, transparent 75%, #dcd9cc 75%),
+        linear-gradient(45deg, #dcd9cc 25%, #f5f3e8 25%, #f5f3e8 75%, #dcd9cc 75%);
+      background-position: 0 0, 12px 12px;
+      background-size: 24px 24px;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+    }
+
+    form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+    }
+
+    input,
+    button {
+      min-height: 52px;
+      border: 3px solid var(--ink);
+      border-radius: 7px;
+      font: bold 18px Georgia, "Times New Roman", serif;
+    }
+
+    input {
+      min-width: 0;
+      padding: 10px 13px;
+      background: white;
+    }
+
+    input:focus { outline: 4px solid rgba(71, 122, 73, .25); }
+
+    button {
+      padding: 8px 16px;
+      cursor: pointer;
+      background: var(--green);
+      color: white;
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    button:hover:not(:disabled) { background: var(--green-dark); transform: translateY(-1px); }
+    button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+    button:disabled { cursor: not-allowed; opacity: .48; }
+
+    .secondary { background: var(--brown); }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    #message {
+      min-height: 28px;
+      margin: 14px 0 0;
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    #message.good { color: var(--green-dark); }
+    #message.bad { color: var(--red); }
+
+    @media (max-width: 560px) {
+      .shell { margin: 10px auto; }
+      .topbar { align-items: flex-start; }
+      #hearts { grid-template-columns: repeat(8, 18px); }
+      .game { padding: 12px; }
+      form { grid-template-columns: 1fr; }
+      .actions { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <h1>Pixel Guesser</h1>
+    <section class="panel">
+      <header class="topbar">
+        <div>
+          <span class="label">Hearts</span>
+          <div id="hearts" aria-label="32 hearts remaining"></div>
+        </div>
+        <div class="round">Round <span id="round">1</span></div>
+      </header>
+
+      <div class="game">
+        <div class="image-frame">
+          <canvas id="gameCanvas" width="384" height="384" aria-label="Pixelated Minecraft item"></canvas>
+        </div>
+
+        <form id="guessForm" autocomplete="off">
+          <input id="guess" name="guess" placeholder="Guess the Minecraft item…" aria-label="Your guess" />
+          <button id="submitGuess" type="submit">Guess</button>
+        </form>
+
+        <div class="actions">
+          <button id="reveal" class="secondary" type="button">Reveal 1 Pixel (−1 heart)</button>
+          <button id="newRound" type="button">Skip / New Item</button>
+        </div>
+        <p id="message" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const ITEMS = [
+      { name: "Diamond Sword", file: "diamond_sword.png" },
+      { name: "Iron Ingot", file: "iron_ingot.png" },
+      { name: "Golden Apple", file: "golden_apple.png" },
+      { name: "Diamond", file: "diamond.png" },
+      { name: "Stick", file: "stick.png" },
+      { name: "Bow", file: "bow.png" },
+      { name: "Ender Pearl", file: "ender_pearl.png" },
+      { name: "Bread", file: "bread.png" },
+      { name: "Compass", file: "compass.png" },
+      { name: "Torch", file: "torch.png" },
+      { name: "Water Bucket", file: "water_bucket.png" },
+      { name: "Redstone Dust", file: "redstone.png" },
+      { name: "Clock", file: "clock.png" },
+      { name: "Netherite Ingot", file: "netherite_ingot.png" },
+      { name: "Pumpkin Pie", file: "pumpkin_pie.png" }
+    ];
+
+    const BASE = "https://cdn.jsdelivr.net/gh/InventivetalentDev/minecraft-assets@master/assets/minecraft/textures/item/";
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const heartsEl = document.getElementById("hearts");
+    const guessInput = document.getElementById("guess");
+    const submitGuess = document.getElementById("submitGuess");
+    const revealButton = document.getElementById("reveal");
+    const newRoundButton = document.getElementById("newRound");
+    const message = document.getElementById("message");
+
+    let hearts = 32;
+    let round = 1;
+    let current;
+    let revealed = new Set();
+    let sourceCanvas = null;
+    let active = true;
+
+    const pixelSize = 24;
+
+    function normalize(value) {
+      return value.toLowerCase().trim().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ");
+    }
+
+    function updateHearts() {
+      heartsEl.replaceChildren();
+      for (let i = 0; i < 32; i++) {
+        const heart = document.createElement("span");
+        heart.className = "heart" + (i >= hearts ? " empty" : "");
+        heart.textContent = i >= hearts ? "♡" : "♥";
+        heart.setAttribute("aria-hidden", "true");
+        heartsEl.appendChild(heart);
+      }
+      heartsEl.setAttribute("aria-label", `${hearts} hearts remaining`);
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "rgba(245, 243, 232, .9)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function drawFallback() {
+      sourceCanvas = document.createElement("canvas");
+      sourceCanvas.width = 16;
+      sourceCanvas.height = 16;
+      const sc = sourceCanvas.getContext("2d");
+      sc.clearRect(0, 0, 16, 16);
+
+      const seed = [...current.name].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+      const palette = ["#56a0d3", "#8b5a2b", "#54a85a", "#d7b84a", "#9c7c58", "#aab4bc"];
+      sc.fillStyle = palette[seed % palette.length];
+
+      sc.fillRect(3, 4, 10, 9);
+      sc.fillRect(5, 2, 6, 2);
+      sc.fillRect(1, 6, 2, 5);
+      sc.fillRect(13, 6, 2, 5);
+      sc.fillStyle = "rgba(255,255,255,.55)";
+      sc.fillRect(5, 5, 3, 2);
+    }
+
+    function drawRevealed() {
+      clearCanvas();
+      if (!sourceCanvas) return;
+
+      for (const index of revealed) {
+        const x = index % 16;
+        const y = Math.floor(index / 16);
+        ctx.drawImage(sourceCanvas, x, y, 1, 1, x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+      }
+    }
+
+    function revealOnePixel() {
+      if (!active || !sourceCanvas) return;
+      if (revealed.size >= 256) return;
+
+      let index;
+      do {
+        index = Math.floor(Math.random() * 256);
+      } while (revealed.has(index));
+
+      revealed.add(index);
+      drawRevealed();
+    }
+
+    function spendHeart() {
+      hearts = Math.max(0, hearts - 1);
+      updateHearts();
+      if (hearts === 0) endGame(false, `You ran out of hearts! It was ${current.name}.`);
+    }
+
+    function endGame(won, text) {
+      active = false;
+      revealed = new Set(Array.from({ length: 256 }, (_, i) => i));
+      drawRevealed();
+      submitGuess.disabled = true;
+      guessInput.disabled = true;
+      revealButton.disabled = true;
+      message.textContent = text;
+      message.className = won ? "good" : "bad";
+    }
+
+    function setMessage(text, kind = "") {
+      message.textContent = text;
+      message.className = kind;
+    }
+
+    function startRound(nextRound = false) {
+      if (nextRound) round++;
+      document.getElementById("round").textContent = round;
+
+      const previousName = current?.name;
+      do {
+        current = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+      } while (ITEMS.length > 1 && current.name === previousName);
+
+      hearts = 32;
+      revealed = new Set();
+      active = true;
+      sourceCanvas = null;
+
+      guessInput.value = "";
+      guessInput.disabled = false;
+      submitGuess.disabled = false;
+      revealButton.disabled = false;
+      setMessage("Guess the item — or reveal one pixel at a time.");
+      updateHearts();
+      clearCanvas();
+
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.onload = () => {
+        sourceCanvas = document.createElement("canvas");
+        sourceCanvas.width = 16;
+        sourceCanvas.height = 16;
+        const sc = sourceCanvas.getContext("2d");
+        sc.clearRect(0, 0, 16, 16);
+        sc.imageSmoothingEnabled = false;
+        sc.drawImage(image, 0, 0, 16, 16);
+        revealOnePixel();
+      };
+      image.onerror = () => {
+        drawFallback();
+        revealOnePixel();
+      };
+      image.src = BASE + current.file;
+      guessInput.focus();
+    }
+
+    document.getElementById("guessForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!active) return;
+
+      const guess = normalize(guessInput.value);
+      if (!guess) {
+        setMessage("Type an item name first.", "bad");
+        return;
+      }
+
+      if (guess === normalize(current.name)) {
+        endGame(true, `Correct! It was ${current.name}.`);
+      } else {
+        spendHeart();
+        if (active) {
+          setMessage(`“${guessInput.value.trim()}” is incorrect. −1 heart`, "bad");
+          guessInput.select();
+        }
+      }
+    });
+
+    revealButton.addEventListener("click", () => {
+      if (!active) return;
+      spendHeart();
+      if (active) {
+        revealOnePixel();
+        setMessage("One pixel revealed. −1 heart", "bad");
+      }
+    });
+
+    newRoundButton.addEventListener("click", () => startRound(true));
+
+    startRound();
+  </script>
+</body>
+</html>
